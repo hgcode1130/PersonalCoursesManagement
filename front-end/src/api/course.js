@@ -5,7 +5,7 @@ import request from './request'
 // 根据学期 ID 获取课程列表
 export function getCoursesByTermApi(termId) {
   return request({
-    url: `/courses/term/${termId}`,
+    url: `/terms/${termId}/courses`,
     method: 'get',
   })
 }
