@@ -190,4 +190,21 @@ public interface CourseMapper {
      */
     @Delete("DELETE FROM courses WHERE id = #{courseId}")
     int deleteCourseById(Long courseId);
+
+    /**
+     * 根据课程ID获取学期ID
+     *
+     * @param courseId 课程ID
+     * @return 学期ID
+     */
+    @Select("SELECT term_id FROM courses WHERE id = #{courseId}")
+    List<Long> findCourseIdsByTermId(Long termId);
+
+    /**
+     * 根据学期ID删除所有课程
+     *
+     * @param termId 学期ID
+     */
+    @Delete("DELETE FROM courses WHERE term_id = #{termId}")
+    void deleteCoursesByTermId(Long termId);
 }

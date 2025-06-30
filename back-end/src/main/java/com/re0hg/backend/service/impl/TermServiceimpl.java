@@ -1,5 +1,7 @@
 package com.re0hg.backend.service.impl;
 
+import com.re0hg.backend.mapper.CourseMapper;
+import com.re0hg.backend.mapper.ScheduleEntryMapper;
 import com.re0hg.backend.mapper.TermMapper;
 import com.re0hg.backend.pojo.PageBean;
 import com.re0hg.backend.pojo.Term;
@@ -10,6 +12,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * @author re0hg
@@ -20,6 +23,12 @@ import org.springframework.stereotype.Service;
 public class TermServiceimpl implements TermService {
   @Autowired
   private TermMapper termMapper;
+
+  @Autowired
+  private CourseMapper courseMapper;
+
+  @Autowired
+    private ScheduleEntryMapper scheduleEntryMapper;
 
   @Override
   public Term createTerm(Term term, Long userId) {
@@ -35,6 +44,7 @@ public class TermServiceimpl implements TermService {
   }
 
   @Override
+  @Transactional
   public boolean deleteTerm(Long termId, Long userId) {
     // 1. 先查询学期是否存在
     Term existingTerm = termMapper.findById(termId);
@@ -48,7 +58,18 @@ public class TermServiceimpl implements TermService {
       throw new RuntimeException("无权限删除此学期");
     }
 
-    // 3. 执行删除操作
+    // 3. 获取该学期下的所有课程ID
+    List<Long> courseIds = courseMapper.findCourseIdsByTermId(termId);
+
+    // 4. 删除所有课程相关的排程
+    for (Long courseId : courseIds) {
+      scheduleEntryMapper.deleteScheduleEntriesByCourseId(courseId);
+    }
+
+    // 5. 删除该学期下的所有课程
+    courseMapper.deleteCoursesByTermId(termId);
+
+    // 6. 删除学期
     int rowsAffected = termMapper.delete(termId);
     return rowsAffected > 0;
   }
