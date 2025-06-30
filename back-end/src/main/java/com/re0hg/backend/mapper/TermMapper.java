@@ -84,4 +84,13 @@ public interface TermMapper {
      */
     @Delete("DELETE FROM terms WHERE id = #{termId}")
   int delete(Long termId);
+
+    /**
+     * 根据课程ID获取学期ID
+     *
+     * @param courseId 课程ID
+     * @return 学期ID
+     */
+    @Select("SELECT term_id FROM courses WHERE id = #{courseId}")
+    Long getTermIdByCourseId(Long courseId);
 }

@@ -7,13 +7,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.re0hg.backend.dto.CourseDTO;
 import com.re0hg.backend.pojo.Course;
@@ -187,4 +181,133 @@ public class CourseController {
       return Result.error(500, "系统内部错误");
     }
   }
+
+    /**
+     * 高级课程搜索 (多条件筛选与分页)
+     * GET /api/courses/search
+     */
+  @GetMapping("/courses/search")
+  public Result searchCourses(
+          @RequestParam(required = false) Long termId,
+          @RequestParam(required = false) String name,
+          @RequestParam(required = false) String teacher,
+          @RequestParam(required = false) Integer tag,
+          @RequestParam(required = false) Integer dayOfWeek,
+          @RequestParam(defaultValue = "0") int page,
+          @RequestParam(defaultValue = "10") int size,
+      HttpServletRequest request) {
+
+    try {
+      log.info("高级课程搜索 - termId: {}, name: {}, teacher: {}, tag: {}, dayOfWeek: {}, page: {}, size: {}",
+          termId, name, teacher, tag, dayOfWeek, page, size);
+
+      // 从JWT获取用户信息
+      Long userId = getCurrentUserId(request);
+      if (userId == null) {
+        return Result.error(401, "用户未认证");
+      }
+
+      // 调用服务层搜索课程
+      try {
+        PageBean<Course> pageBean = courseService.searchCoursesWithPagination(
+            termId, name, teacher, tag, dayOfWeek, userId, page, size);
+
+        return Result.success(200, "查询成功", pageBean);
+      } catch (RuntimeException e) {
+        return Result.error(400, e.getMessage());
+      }
+    } catch (Exception e) {
+      log.error("课程搜索失败: ", e);
+      return Result.error(500, "系统内部错误");
+    }
+  }
+  
+  // PUT /api/courses/{courseId}
+  @PutMapping("/courses/{courseId}")
+  public Result updateCourse(@PathVariable Long courseId, @RequestBody CourseDTO courseDTO, HttpServletRequest request) {
+    try {
+      log.info("更新课程 - 课程ID: {}, 名称: {}", courseId, courseDTO.getName());
+
+      // 从JWT获取用户信息
+      Long userId = getCurrentUserId(request);
+      if (userId == null) {
+        return Result.error(401, "用户未认证");
+      }
+
+      // 将DTO转换为实体
+      Course course = new Course();
+      course.setId(courseId);
+      course.setName(courseDTO.getName());
+      course.setTeachers(courseDTO.getTeachers());
+      course.setMainTeacherEmail(courseDTO.getMainTeacherEmail());
+      course.setCourseGroupChatId(courseDTO.getCourseGroupChatId());
+      course.setTag(courseDTO.getTag());
+      course.setNote(courseDTO.getNote());
+
+      // 设置Term
+      Term term = new Term();
+      term.setId(courseDTO.getTermId());
+      course.setTerm(term);
+
+      // 转换排程
+      if (courseDTO.getScheduleEntries() != null) {
+        List<ScheduleEntry> entries = new ArrayList<>();
+        for (CourseDTO.ScheduleEntryDTO entryDTO : courseDTO.getScheduleEntries()) {
+          ScheduleEntry entry = new ScheduleEntry();
+          entry.setLocation(entryDTO.getLocation());
+          entry.setDayOfWeek(entryDTO.getDayOfWeek());
+          entry.setStartPeriod(entryDTO.getStartPeriod());
+          entry.setEndPeriod(entryDTO.getEndPeriod());
+          entry.setStartWeek(entryDTO.getStartWeek());
+          entry.setEndWeek(entryDTO.getEndWeek());
+          entries.add(entry);
+        }
+        course.setScheduleEntries(entries);
+      }
+
+      // 调用服务层更新课程
+      try {
+        Course updatedCourse = courseService.updateCourse(courseId, course, userId);
+        log.info("成功更新课程 - 课程ID: {}, 名称: {}", updatedCourse.getId(), updatedCourse.getName());
+        return Result.success(200, "课程更新成功", updatedCourse);
+      } catch (RuntimeException e) {
+        // 处理业务异常
+        if (e.getMessage().contains("无权限")) {
+          return Result.error(403, e.getMessage());
+        } else {
+          return Result.error(400, e.getMessage());
+        }
+      }
+    } catch (Exception e) {
+      log.error("更新课程失败: ", e);
+      return Result.error(500, "系统内部错误");
+    }
+  }
+
+
+  //delete  /api/courses/{courseId}
+  @DeleteMapping("/courses/{courseId}")
+    public Result deleteCourse(@PathVariable Long courseId, HttpServletRequest request) {
+        try {
+        log.info("删除课程 - 课程ID: {}", courseId);
+
+        // 从JWT获取用户信息
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "用户未认证");
+        }
+
+        // 调用服务层删除课程
+        boolean deleted = courseService.deleteCourse(courseId, userId);
+        if (deleted) {
+            log.info("成功删除课程 - 课程ID: {}", courseId);
+            return Result.success(200, "课程删除成功");
+        } else {
+            return Result.error(404, "课程不存在或无权限删除");
+        }
+        } catch (Exception e) {
+        log.error("删除课程失败: ", e);
+          return Result.error(500, "系统内部错误");
+        }
+    }
 }
