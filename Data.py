@@ -1,12 +1,64 @@
 import random
 import datetime
 import bcrypt
+import argparse
+'''
+# 生成默认数据（14个用户，混合风格）
+python Data.py
 
+# 生成50个额外用户，中文风格
+python Data.py -u 50 -s chinese
+
+# 生成100个额外用户，英文风格，保存到文件
+python Data.py -u 100 -s english -o test_data.sql
+
+# 生成20个创意用户名
+python Data.py -u 20 -s creative
+'''
 # --- 1. 配置与数据池 ---
 
 # 密码 '123456' 的 Bcrypt 哈希值 (每次运行脚本值都不同，但都有效)
 PASSWORD_RAW = '123456'
 PASSWORD_HASH = bcrypt.hashpw(PASSWORD_RAW.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+# 新增：多样化的用户名池
+CHINESE_SURNAMES = [
+    "张", "李", "王", "刘", "陈", "杨", "黄", "赵", "周", "吴",
+    "徐", "孙", "朱", "马", "胡", "郭", "林", "何", "高", "梁",
+    "郑", "罗", "宋", "谢", "唐", "韩", "冯", "于", "董", "萧",
+    "程", "曹", "袁", "邓", "许", "傅", "沈", "曾", "彭", "吕"
+]
+
+CHINESE_GIVEN_NAMES = [
+    "晨", "阳", "雪", "华", "明", "静", "伟", "娜", "磊", "丽",
+    "强", "敏", "涛", "艳", "超", "洋", "峰", "霞", "军", "燕",
+    "辉", "萍", "鹏", "红", "斌", "玲", "勇", "芳", "杰", "梅",
+    "宇", "琳", "飞", "莉", "刚", "倩", "浩", "婷", "凯", "欣",
+    "博", "怡", "龙", "佳", "虎", "慧", "建", "兰", "文", "英"
+]
+
+ENGLISH_FIRST_NAMES = [
+    "Alex", "Emma", "James", "Olivia", "William", "Sophia", "Benjamin", "Charlotte",
+    "Lucas", "Amelia", "Henry", "Harper", "Alexander", "Evelyn", "Sebastian", "Abigail",
+    "Jack", "Emily", "Owen", "Elizabeth", "Theodore", "Mila", "Jacob", "Ella",
+    "Leo", "Avery", "Noah", "Sofia", "Oliver", "Camila", "Ethan", "Aria"
+]
+
+ENGLISH_LAST_NAMES = [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas",
+    "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White",
+    "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker", "Young"
+]
+
+CREATIVE_USERNAMES = [
+    "skywalker", "moonlight", "sunshine", "stargazer", "dreamcatcher", "nightowl",
+    "firefly", "butterfly", "rainbow", "melody", "harmony", "symphony", "phoenix",
+    "dragon", "tiger", "eagle", "wolf", "lion", "bear", "fox", "deer", "rabbit",
+    "ocean", "river", "mountain", "forest", "garden", "flower", "tree", "leaf",
+    "crystal", "diamond", "pearl", "jade", "ruby", "emerald", "sapphire", "gold",
+    "silver", "copper", "iron", "steel", "thunder", "lightning", "storm", "wind"
+]
 
 # 扩展的数据池
 TERM_NAMES = {
@@ -21,7 +73,7 @@ TERM_NAMES = {
     "2025-2026夏季学期": ("2026-06-23", "2026-08-28"),
 }
 
-# 扩展建筑和教室
+# [其他数据池保持不变...]
 LOCATIONS_BUILDINGS = [
     "学武楼", "西部片区二号楼", "西部片区四号楼", "益海嘉里楼", "坤乾楼", "文宣楼",
     "图书馆", "实验楼", "音乐厅", "体育馆", "艺术楼", "工程楼", "医学楼", "法学楼",
@@ -107,7 +159,145 @@ COURSE_NOTES = [
     "无特殊要求", "详见课程大纲", "", "暂无"
 ]
 
-# --- 2. 辅助函数 ---
+# --- 2. 用户生成函数 ---
+
+def generate_chinese_username():
+    """生成中文风格的用户名"""
+    surname = random.choice(CHINESE_SURNAMES)
+    given_name1 = random.choice(CHINESE_GIVEN_NAMES)
+    given_name2 = random.choice(CHINESE_GIVEN_NAMES) if random.random() < 0.6 else ""
+    return f"{surname}{given_name1}{given_name2}"
+
+def generate_english_username():
+    """生成英文风格的用户名"""
+    first_name = random.choice(ENGLISH_FIRST_NAMES)
+    last_name = random.choice(ENGLISH_LAST_NAMES)
+    # 生成不同格式的用户名
+    formats = [
+        f"{first_name.lower()}.{last_name.lower()}",
+        f"{first_name.lower()}{last_name.lower()}",
+        f"{first_name[0].lower()}{last_name.lower()}",
+        f"{first_name.lower()}{random.randint(10, 99)}"
+    ]
+    return random.choice(formats)
+
+def generate_creative_username():
+    """生成创意用户名"""
+    base = random.choice(CREATIVE_USERNAMES)
+    # 30% 概率加数字后缀
+    if random.random() < 0.3:
+        return f"{base}{random.randint(10, 999)}"
+    # 20% 概率加下划线和第二个词
+    elif random.random() < 0.2:
+        second_word = random.choice(CREATIVE_USERNAMES)
+        return f"{base}_{second_word}"
+    else:
+        return base
+
+def generate_username(style="mixed"):
+    """
+    生成用户名
+    style: "chinese", "english", "creative", "mixed"
+    """
+    if style == "chinese":
+        return generate_chinese_username()
+    elif style == "english":
+        return generate_english_username()
+    elif style == "creative":
+        return generate_creative_username()
+    else:  # mixed
+        styles = [generate_chinese_username, generate_english_username, generate_creative_username]
+        return random.choice(styles)()
+
+def generate_email(username):
+    """根据用户名生成邮箱"""
+    # 对中文用户名进行简单的音译处理
+    if any(ord(char) > 127 for char in username):
+        # 简化的拼音映射（这里简化处理，实际可以用pypinyin库）
+        pinyin_map = {
+            '张': 'zhang', '李': 'li', '王': 'wang', '刘': 'liu', '陈': 'chen',
+            '杨': 'yang', '黄': 'huang', '赵': 'zhao', '周': 'zhou', '吴': 'wu',
+            '徐': 'xu', '孙': 'sun', '朱': 'zhu', '马': 'ma', '胡': 'hu',
+            '郭': 'guo', '林': 'lin', '何': 'he', '高': 'gao', '梁': 'liang',
+            '郑': 'zheng', '罗': 'luo', '宋': 'song', '谢': 'xie', '唐': 'tang',
+            '韩': 'han', '冯': 'feng', '于': 'yu', '董': 'dong', '萧': 'xiao',
+            '程': 'cheng', '曹': 'cao', '袁': 'yuan', '邓': 'deng', '许': 'xu',
+            '傅': 'fu', '沈': 'shen', '曾': 'zeng', '彭': 'peng', '吕': 'lv',
+            '晨': 'chen', '阳': 'yang', '雪': 'xue', '华': 'hua', '明': 'ming',
+            '静': 'jing', '伟': 'wei', '娜': 'na', '磊': 'lei', '丽': 'li',
+            '强': 'qiang', '敏': 'min', '涛': 'tao', '艳': 'yan', '超': 'chao',
+            '洋': 'yang', '峰': 'feng', '霞': 'xia', '军': 'jun', '燕': 'yan',
+            '辉': 'hui', '萍': 'ping', '鹏': 'peng', '红': 'hong', '斌': 'bin',
+            '玲': 'ling', '勇': 'yong', '芳': 'fang', '杰': 'jie', '梅': 'mei',
+            '宇': 'yu', '琳': 'lin', '飞': 'fei', '莉': 'li', '刚': 'gang',
+            '倩': 'qian', '浩': 'hao', '婷': 'ting', '凯': 'kai', '欣': 'xin',
+            '博': 'bo', '怡': 'yi', '龙': 'long', '佳': 'jia', '虎': 'hu',
+            '慧': 'hui', '建': 'jian', '兰': 'lan', '文': 'wen', '英': 'ying'
+        }
+        
+        email_prefix = ""
+        for char in username:
+            email_prefix += pinyin_map.get(char, char.lower())
+    else:
+        email_prefix = username.lower()
+    
+    domain = random.choice(EMAIL_DOMAINS)
+    return f"{email_prefix}@{domain}"
+
+def generate_users_data(num_additional_users=10, username_style="mixed"):
+    """
+    生成用户数据
+    num_additional_users: 除了默认4个用户外，额外生成的用户数量
+    username_style: 用户名风格 ("chinese", "english", "creative", "mixed")
+    """
+    # 保留原有的默认用户
+    users_data = [
+        {'username': 'admin', 'email': 'admin@example.com', 'role': 'ADMIN', 'is_enabled': 1},
+        {'username': 'trial', 'email': 'trial@example.com', 'role': 'TRIAL', 'is_enabled': 1},
+        {'username': 'user1', 'email': 'user1@example.com', 'role': 'USER', 'is_enabled': 1},
+        {'username': 'user2', 'email': 'user2@example.com', 'role': 'USER', 'is_enabled': 0},
+    ]
+    
+    # 生成额外的用户
+    generated_usernames = set([user['username'] for user in users_data])
+    
+    for i in range(num_additional_users):
+        # 确保用户名唯一
+        attempts = 0
+        while attempts < 50:  # 防止无限循环
+            username = generate_username(username_style)
+            if username not in generated_usernames:
+                generated_usernames.add(username)
+                break
+            attempts += 1
+        else:
+            # 如果50次都没生成唯一用户名，就用后缀数字
+            username = f"{generate_username(username_style)}_{i+5}"
+        
+        email = generate_email(username)
+        
+        # 随机分配角色（80%普通用户，15%试用用户，5%管理员）
+        role_rand = random.random()
+        if role_rand < 0.8:
+            role = 'USER'
+        elif role_rand < 0.95:
+            role = 'TRIAL'
+        else:
+            role = 'ADMIN'
+        
+        # 90%的用户是启用状态
+        is_enabled = 1 if random.random() < 0.9 else 0
+        
+        users_data.append({
+            'username': username,
+            'email': email,
+            'role': role,
+            'is_enabled': is_enabled
+        })
+    
+    return users_data
+
+# --- 3. 其他辅助函数保持不变 ---
 
 def generate_random_timestamp(start_year=2022, end_year=2024):
     """生成一个指定年份范围内的随机时间戳字符串"""
@@ -172,23 +362,18 @@ def should_generate_field(probability):
     """按概率决定是否生成某个字段"""
     return random.random() < probability
 
-# --- 3. 数据生成核心逻辑 ---
+# --- 4. 主要的SQL生成函数 ---
 
-def generate_sql_script():
-    """主函数，生成所有SQL INSERT语句"""
+def generate_sql_script(num_additional_users=10, username_style="mixed"):
+    """
+    主函数，生成所有SQL INSERT语句
+    num_additional_users: 除了默认4个用户外，额外生成的用户数量
+    username_style: 用户名风格 ("chinese", "english", "creative", "mixed")
+    """
     sql_statements = []
 
-    # -- USERS -- (保持原有的简单用户结构)
-    users_data = [
-        # id=1
-        {'username': 'admin', 'email': 'admin@example.com', 'role': 'ADMIN', 'is_enabled': 1},
-        # id=2
-        {'username': 'trial', 'email': 'trial@example.com', 'role': 'TRIAL', 'is_enabled': 1},
-        # id=3
-        {'username': 'user1', 'email': 'user1@example.com', 'role': 'USER', 'is_enabled': 1},
-        # id=4
-        {'username': 'user2', 'email': 'user2@example.com', 'role': 'USER', 'is_enabled': 0},
-    ]
+    # -- USERS -- 使用新的用户生成函数
+    users_data = generate_users_data(num_additional_users, username_style)
 
     sql_statements.append("-- ----------------------------")
     sql_statements.append("-- Records of users")
@@ -208,20 +393,22 @@ def generate_sql_script():
     course_id_counter = 1
     schedule_id_counter = 1
 
-    # 为启用的用户生成数据 (admin, trial, user1)
-    for user_id in [1, 2, 3]:
+    # 为启用的用户生成数据
+    enabled_users = [(i+1, user) for i, user in enumerate(users_data) if user['is_enabled']]
+    
+    for user_id, user_info in enabled_users:
         # -- TERMS --
-        sql_statements.append(f"\n-- Data for User ID: {user_id} --\n")
+        sql_statements.append(f"\n-- Data for User ID: {user_id} ({user_info['username']}) --\n")
         sql_statements.append("-- ----------------------------")
         sql_statements.append(f"-- Records of terms for user {user_id}")
         sql_statements.append("-- ----------------------------")
         
-        # 根据用户类型生成不同数量的学期
-        if user_id == 1:  # admin用户有更多学期
+        # 根据用户角色生成不同数量的学期
+        if user_info['role'] == 'ADMIN':
             num_terms = random.randint(4, 6)
-        elif user_id == 2:  # trial用户有中等数量学期
+        elif user_info['role'] == 'TRIAL':
             num_terms = random.randint(2, 3)
-        else:  # user1有标准数量学期
+        else:  # USER
             num_terms = random.randint(3, 4)
             
         user_terms = random.sample(list(TERM_NAMES.items()), min(num_terms, len(TERM_NAMES)))
@@ -245,12 +432,12 @@ def generate_sql_script():
         sql_statements.append("-- ----------------------------")
         
         for term_id in user_term_ids:
-            # 根据用户类型生成不同数量的课程
-            if user_id == 1:  # admin用户有更多课程
+            # 根据用户角色生成不同数量的课程
+            if user_info['role'] == 'ADMIN':
                 num_courses = random.randint(8, 12)
-            elif user_id == 2:  # trial用户有较少课程
+            elif user_info['role'] == 'TRIAL':
                 num_courses = random.randint(4, 6)
-            else:  # user1有中等数量课程
+            else:  # USER
                 num_courses = random.randint(6, 10)
                 
             picked_course_names = random.sample(COURSE_NAMES, min(num_courses, len(COURSE_NAMES)))
@@ -357,25 +544,65 @@ def generate_sql_script():
                 
                 course_id_counter += 1
 
-    return "\n".join(sql_statements)
+    return "\n".join(sql_statements), users_data
 
-# --- 4. 运行并打印结果 ---
-if __name__ == "__main__":
-    final_sql = generate_sql_script()
-    print(final_sql)
+# --- 5. 命令行接口 ---
+def main():
+    parser = argparse.ArgumentParser(description='生成课程管理系统的测试SQL数据')
+    parser.add_argument('-u', '--users', type=int, default=10, 
+                       help='除了默认4个用户外，额外生成的用户数量 (默认: 10)')
+    parser.add_argument('-s', '--style', choices=['chinese', 'english', 'creative', 'mixed'], 
+                       default='mixed', help='用户名风格 (默认: mixed)')
+    parser.add_argument('-o', '--output', type=str, help='输出文件名 (可选)')
+    
+    args = parser.parse_args()
+    
+    print(f"正在生成测试数据...")
+    print(f"- 额外用户数量: {args.users}")
+    print(f"- 用户名风格: {args.style}")
+    print(f"- 总用户数: {4 + args.users}")
+    
+    final_sql, users_data = generate_sql_script(args.users, args.style)
+    
+    # 输出到文件或控制台
+    if args.output:
+        with open(args.output, 'w', encoding='utf-8') as f:
+            f.write(final_sql)
+        print(f"\n✅ SQL文件已生成: {args.output}")
+    else:
+        print("\n" + "="*80)
+        print(final_sql)
     
     # 打印统计信息
+    enabled_count = sum(1 for user in users_data if user['is_enabled'])
+    role_stats = {}
+    for user in users_data:
+        role = user['role']
+        role_stats[role] = role_stats.get(role, 0) + 1
+    
     print("\n-- ----------------------------")
     print("-- 数据生成统计信息")
     print("-- ----------------------------")
-    print(f"-- 用户总数: 4 (1个管理员，1个试用用户，2个普通用户)")
-    print(f"-- 活跃用户: 3 (admin, trial, user1)")
+    print(f"-- 用户总数: {len(users_data)}")
+    print(f"-- 启用用户: {enabled_count}")
+    print(f"-- 用户角色分布: {role_stats}")
     print(f"-- 课程名称池: {len(COURSE_NAMES)} 种")
     print(f"-- 教师名称池: {len(TEACHERS)} 人")
     print(f"-- 建筑地点池: {len(LOCATIONS_BUILDINGS)} 个")
     print(f"-- 教室编号池: {len(ROOM_NUMBERS)} 个")
     print(f"-- 学期类型: {len(TERM_NAMES)} 种")
+    print(f"-- 用户名风格: {args.style}")
     print("-- 数据特点: 包含中英文教师、多样化课程类型、丰富的可选字段")
-    print("-- admin用户: 4-6个学期，每学期8-12门课程")
-    print("-- trial用户: 2-3个学期，每学期4-6门课程")
-    print("-- user1用户: 3-4个学期，每学期6-10门课程")
+    print("-- ADMIN用户: 4-6个学期，每学期8-12门课程")
+    print("-- TRIAL用户: 2-3个学期，每学期4-6门课程")
+    print("-- USER用户: 3-4个学期，每学期6-10门课程")
+    
+    print("\n-- 生成的用户名示例:")
+    for i, user in enumerate(users_data[:10]):  # 显示前10个用户
+        print(f"-- {i+1:2d}. {user['username']:20s} ({user['role']:5s}) - {user['email']}")
+    if len(users_data) > 10:
+        print(f"-- ... 还有 {len(users_data)-10} 个用户")
+
+# --- 6. 运行脚本 ---
+if __name__ == "__main__":
+    main()

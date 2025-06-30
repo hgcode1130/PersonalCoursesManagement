@@ -5,21 +5,27 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.re0hg.backend.dto.CourseDTO;
+import com.re0hg.backend.dto.ExcelImportResultDTO;
 import com.re0hg.backend.pojo.Course;
 import com.re0hg.backend.pojo.PageBean;
 import com.re0hg.backend.pojo.Result;
 import com.re0hg.backend.pojo.ScheduleEntry;
 import com.re0hg.backend.pojo.Term;
 import com.re0hg.backend.service.CourseService;
+import com.re0hg.backend.service.ExcelImportService;
+import com.re0hg.backend.utils.ExcelUtils;
 import com.re0hg.backend.utils.JwtUtils;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * @author re0hg
@@ -32,6 +38,87 @@ import jakarta.servlet.http.HttpServletRequest;
 public class CourseController {
   @Autowired
   private CourseService courseService;
+
+  @Autowired
+  private ExcelImportService excelImportService;
+
+  /**
+   * Excel 导入课程
+   * POST /api/import/excel
+   */
+  @PostMapping("/import/excel")
+  public Result importExcelCourses(
+      @RequestParam("file") MultipartFile file,
+      @RequestParam("termId") Long termId,
+      HttpServletRequest request) {
+
+    try {
+      log.info("Excel导入课程 - 学期ID: {}, 文件名: {}", termId, file.getOriginalFilename());
+
+      // 验证文件
+      if (file.isEmpty()) {
+        return Result.error(400, "上传的文件不能为空");
+      }
+
+      // 验证文件大小（10MB）
+      if (file.getSize() > 10 * 1024 * 1024) {
+        return Result.error(400, "文件大小不能超过10MB");
+      }
+
+      // 验证文件类型
+      String fileName = file.getOriginalFilename();
+      if (fileName == null || (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls"))) {
+        return Result.error(400, "只支持.xlsx和.xls格式的Excel文件");
+      }
+
+      // 获取用户信息
+      Long userId = getCurrentUserId(request);
+      if (userId == null) {
+        return Result.error(401, "用户未认证");
+      }
+
+      // 执行导入
+      ExcelImportResultDTO result = excelImportService.importCoursesFromExcel(file, termId, userId);
+
+      // 根据结果返回不同的状态码
+      if (result.getFailedImports() == 0) {
+        return Result.success(200, "Excel导入成功", result);
+      } else if (result.getSuccessfulImports() > 0) {
+        return Result.success(207, "Excel导入部分成功，存在错误数据", result);
+      } else {
+        return Result.error(400, "Excel导入失败，所有数据都存在错误", result);
+      }
+
+    } catch (Exception e) {
+      log.error("Excel导入失败: ", e);
+      return Result.error(500, "Excel导入失败: " + e.getMessage());
+    }
+  }
+
+  /**
+   * 下载Excel模板
+   * GET /api/import/excel/template
+   */
+  @GetMapping("/import/excel/template")
+  public void downloadTemplate(HttpServletResponse response) {
+    try {
+      log.info("下载Excel模板");
+
+      Workbook workbook = ExcelUtils.createTemplateWorkbook();
+
+      // 设置响应头
+      response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      response.setHeader("Content-Disposition", "attachment; filename=course_template.xlsx");
+
+      // 写入响应
+      workbook.write(response.getOutputStream());
+      workbook.close();
+
+    } catch (Exception e) {
+      log.error("下载模板失败: ", e);
+      response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }
 
   /**
    * 创建课程
@@ -182,19 +269,19 @@ public class CourseController {
     }
   }
 
-    /**
-     * 高级课程搜索 (多条件筛选与分页)
-     * GET /api/courses/search
-     */
+  /**
+   * 高级课程搜索 (多条件筛选与分页)
+   * GET /api/courses/search
+   */
   @GetMapping("/courses/search")
   public Result searchCourses(
-          @RequestParam(required = false) Long termId,
-          @RequestParam(required = false) String name,
-          @RequestParam(required = false) String teacher,
-          @RequestParam(required = false) Integer tag,
-          @RequestParam(required = false) Integer dayOfWeek,
-          @RequestParam(defaultValue = "0") int page,
-          @RequestParam(defaultValue = "10") int size,
+      @RequestParam(required = false) Long termId,
+      @RequestParam(required = false) String name,
+      @RequestParam(required = false) String teacher,
+      @RequestParam(required = false) Integer tag,
+      @RequestParam(required = false) Integer dayOfWeek,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "10") int size,
       HttpServletRequest request) {
 
     try {
@@ -221,10 +308,11 @@ public class CourseController {
       return Result.error(500, "系统内部错误");
     }
   }
-  
+
   // PUT /api/courses/{courseId}
   @PutMapping("/courses/{courseId}")
-  public Result updateCourse(@PathVariable Long courseId, @RequestBody CourseDTO courseDTO, HttpServletRequest request) {
+  public Result updateCourse(@PathVariable Long courseId, @RequestBody CourseDTO courseDTO,
+      HttpServletRequest request) {
     try {
       log.info("更新课程 - 课程ID: {}, 名称: {}", courseId, courseDTO.getName());
 
@@ -284,30 +372,29 @@ public class CourseController {
     }
   }
 
-
-  //delete  /api/courses/{courseId}
+  // delete /api/courses/{courseId}
   @DeleteMapping("/courses/{courseId}")
-    public Result deleteCourse(@PathVariable Long courseId, HttpServletRequest request) {
-        try {
-        log.info("删除课程 - 课程ID: {}", courseId);
+  public Result deleteCourse(@PathVariable Long courseId, HttpServletRequest request) {
+    try {
+      log.info("删除课程 - 课程ID: {}", courseId);
 
-        // 从JWT获取用户信息
-        Long userId = getCurrentUserId(request);
-        if (userId == null) {
-            return Result.error(401, "用户未认证");
-        }
+      // 从JWT获取用户信息
+      Long userId = getCurrentUserId(request);
+      if (userId == null) {
+        return Result.error(401, "用户未认证");
+      }
 
-        // 调用服务层删除课程
-        boolean deleted = courseService.deleteCourse(courseId, userId);
-        if (deleted) {
-            log.info("成功删除课程 - 课程ID: {}", courseId);
-            return Result.success(200, "课程删除成功");
-        } else {
-            return Result.error(404, "课程不存在或无权限删除");
-        }
-        } catch (Exception e) {
-        log.error("删除课程失败: ", e);
-          return Result.error(500, "系统内部错误");
-        }
+      // 调用服务层删除课程
+      boolean deleted = courseService.deleteCourse(courseId, userId);
+      if (deleted) {
+        log.info("成功删除课程 - 课程ID: {}", courseId);
+        return Result.success(200, "课程删除成功");
+      } else {
+        return Result.error(404, "课程不存在或无权限删除");
+      }
+    } catch (Exception e) {
+      log.error("删除课程失败: ", e);
+      return Result.error(500, "系统内部错误");
     }
+  }
 }

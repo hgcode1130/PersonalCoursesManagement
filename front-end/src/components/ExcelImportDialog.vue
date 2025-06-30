@@ -242,6 +242,10 @@ const handleDownloadTemplate = async () => {
   downloadLoading.value = true;
   try {
     const response = await downloadTemplateApi();
+    // 确保响应是 Blob 类型
+    if (!(response.data instanceof Blob)) {
+      throw new Error("响应数据不是有效的 Blob 类型");
+    }
 
     // 创建Blob对象
     const blob = new Blob([response.data], {

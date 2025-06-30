@@ -300,4 +300,6 @@ public class CourseServiceimpl implements CourseService {
       throw new RuntimeException("删除课程失败: " + e.getMessage());
     }
   }
+
+  
 }
