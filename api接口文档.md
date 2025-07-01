@@ -51,12 +51,12 @@ SPRING_PROFILES_ACTIVE=dev
 - ✅ 用户权限管理（ADMIN/USER/TRIAL）
 - ✅ JWT 认证与状态持久化
 - ✅ 前端多视图支持（周视图/日视图/学期视图）
-- ✅ Excel 批量导入
+- ✅ Excel 批量导入与模板下载
 
 ### **技术规范**
 
 - **根路径**: `/api`
-- **认证**: 除用户注册和登录接口外，所有接口均需在请求头中携带 `Authorization: Bearer <token>` 进行 JWT 认证
+- **认证**: 除用户注册和登录接口外，所有接口均需在请求头中携带 `token: <JWT_TOKEN>` 进行认证
 - **时间格式**: 所有时间字段均为 ISO 8601 格式，如 `"2025-06-23T11:30:00"`
 - **命名约定**: JSON 字段采用小驼峰命名法 (camelCase)
 
@@ -707,7 +707,101 @@ GET /api/courses/search?termId=1&tag=1&teacher=张三&page=0&size=10
 
 ## **六、导入接口 (Import)**
 
-### **6.1 通过 Excel 导入课程**
+### **6.1 下载 Excel 导入模板**
+
+#### **基本信息**
+
+- **请求路径**：`GET /api/import/excel/template`
+- **接口描述**：下载标准的 Excel 导入模板文件
+- **前置条件**：用户已登录
+- **响应类型**：文件流 (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
+
+#### **请求参数**
+
+无需参数
+
+#### **请求示例**
+
+```bash
+curl -X GET "http://localhost:8080/api/import/excel/template" \
+  -H "token: <your-jwt-token>" \
+  -o "course_template.xlsx"
+```
+
+#### **响应数据**
+
+**成功响应 (200 OK)**：
+
+- **Content-Type**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **Content-Disposition**: `attachment; filename="course_template.xlsx"`
+- **响应体**: Excel 文件二进制流
+
+**模板文件结构**：
+
+| 列名         | 示例数据            | 说明                     |
+| ------------ | ------------------- | ------------------------ |
+| 课程名称     | 高等数学            | 必填，课程名称           |
+| 教师         | 张三,李四           | 选填，多个教师用逗号分隔 |
+| 主讲老师邮箱 | zhangsan@xmu.edu.cn | 选填，邮箱格式           |
+| 课程群号     | 123456789           | 选填，课程群号           |
+| 标签         | 必修                | 选填，必修/选修          |
+| 上课地点     | 教学楼 A-101        | 选填，上课地点           |
+| 星期         | 1                   | 必填，1-7 (1=周一)       |
+| 开始节次     | 1                   | 必填，1-12               |
+| 结束节次     | 2                   | 必填，≥ 开始节次         |
+| 开始周       | 1                   | 必填，1-20               |
+| 结束周       | 16                  | 必填，≥ 开始周           |
+| 备注         | 重要基础课程        | 选填，课程备注           |
+
+#### **前端调用示例**
+
+```javascript
+// 下载Excel模板
+export function downloadTemplateApi() {
+  return request({
+    url: "/import/excel/template",
+    method: "get",
+    responseType: "blob", // 重要：指定响应类型为blob
+    skipResponseIntercept: true,
+  });
+}
+
+// 使用示例
+const handleDownloadTemplate = async () => {
+  try {
+    const response = await downloadTemplateApi();
+
+    // 创建下载链接
+    const url = window.URL.createObjectURL(response.data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "课程导入模板.xlsx";
+
+    // 触发下载
+    document.body.appendChild(link);
+    link.click();
+
+    // 清理
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    ElMessage.success("模板下载成功");
+  } catch (error) {
+    ElMessage.error("下载模板失败，请重试");
+  }
+};
+```
+
+#### **测试步骤**
+
+1. 使用有效 token 请求下载接口
+2. 验证响应头 Content-Type 和 Content-Disposition
+3. 检查下载的文件是否为有效的 Excel 文件
+4. 验证模板文件包含正确的表头和示例数据
+
+---
+
+### **6.2 通过 Excel 导入课程**
 
 #### **基本信息**
 
@@ -763,7 +857,7 @@ Excel 文件第一行必须包含以下表头（严格按照表头名称）：
 
 ```bash
 curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
-  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "token: <your-jwt-token>" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@courses.xlsx"
 ```
@@ -909,16 +1003,23 @@ curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
    - 学期必须存在且属于当前用户
    - 课程时间不能与同学期其他课程冲突
 
+#### **工作流程推荐**
+
+1. **下载模板**：调用 `GET /api/import/excel/template` 获取标准模板
+2. **填写数据**：按照模板格式填写课程数据
+3. **上传导入**：调用 `POST /api/import/excel` 上传填写好的 Excel 文件
+4. **查看结果**：根据响应查看导入结果和错误信息
+
 #### **测试步骤**
 
 1. **准备测试文件**：
 
    ```bash
-   # 创建包含各种情况的Excel测试文件
-   - 正确格式的标准文件
-   - 包含错误数据的文件
-   - 缺少必要表头的文件
-   - 空文件
+   # 使用 GenerateExcel.py 生成测试文件
+   python GenerateExcel.py -n 50              # 生成50条正常数据
+   python GenerateExcel.py -t error           # 生成包含错误的文件
+   python GenerateExcel.py -t invalid         # 生成格式错误的文件
+   python GenerateExcel.py -t all             # 生成所有类型的测试文件
    ```
 
 2. **功能测试**：
@@ -976,22 +1077,6 @@ curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
    - 每行数据独立事务，单行失败不影响其他行
    - 导入过程中断不会影响已成功导入的数据
 
-### **6.2 通过 Excel 导入课程**
-
-#### **基本信息**
-
-- **请求路径**：`POST /api/import/excel?termId=1`
-- **接口描述**：将 Excel 文件中的课程数据导入到指定学期
-- **前置条件**：学期存在且属于当前用户
-- **建议**：使用前请先下载标准模板（6.1 接口）
-
-#### **工作流程**
-
-1. **下载模板**：调用 `/api/import/template` 获取标准模板
-2. **填写数据**：按照模板格式填写课程数据
-3. **上传导入**：调用本接口上传填写好的 Excel 文件
-4. **查看结果**：根据响应查看导入结果和错误信息
-
 ---
 
 ## **七、错误码说明**
@@ -1000,11 +1085,14 @@ curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
 | ------ | ---------------- | -------------------------- |
 | 200    | 请求成功         | 正常操作                   |
 | 201    | 资源创建成功     | 用户注册、学期/课程创建    |
+| 207    | 部分成功         | Excel 导入部分成功         |
 | 400    | 请求参数错误     | 缺少必要参数、格式错误     |
 | 401    | 未认证或认证失败 | token 过期、用户名密码错误 |
 | 403    | 权限不足         | 非管理员访问管理接口       |
 | 404    | 资源不存在       | 学期/课程不存在            |
 | 409    | 资源冲突         | 用户名重复、课程时间冲突   |
+| 413    | 文件过大         | 上传文件超过 10MB          |
+| 415    | 文件格式不支持   | 上传非 Excel 格式文件      |
 | 500    | 服务器内部错误   | 数据库连接失败、未知异常   |
 
 ---
@@ -1027,13 +1115,29 @@ curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
 - 按课程类型统计学分
 - 课程表视觉化区分
 
-### **8.2 多视图支持**
+### **8.2 Excel 导入增强**
+
+**功能亮点**：
+
+- **模板下载**：提供标准格式模板，确保导入成功率
+- **智能验证**：多层次数据验证，精确定位错误位置
+- **批量处理**：支持 1000+ 行数据的高效导入
+- **错误报告**：详细的错误信息和成功统计
+
+**技术特性**：
+
+- 支持 .xlsx 和 .xls 格式
+- 自动识别课程标签（必修/选修）
+- 独立事务处理，单行失败不影响整体
+- 实时处理进度反馈
+
+### **8.3 多视图支持**
 
 **周视图**：传统课程表格网格视图
 **日视图**：单日课程详细展示  
 **学期视图**：课程列表形式，支持展开详情
 
-### **8.3 权限管理体系**
+### **8.4 权限管理体系**
 
 **角色类型**：
 
@@ -1062,21 +1166,22 @@ curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
 
 #### **阶段一：基础功能**
 
-1. 用户注册/登录 ✓
-2. JWT 认证验证 ✓
-3. 学期 CRUD 操作 ✓
+1. 用户注册/登录 ✅
+2. JWT 认证验证 ✅
+3. 学期 CRUD 操作 ✅
 
 #### **阶段二：核心功能**
 
-1. 课程 CRUD 操作（含标签） ✓
-2. 课程搜索筛选 ✓
-3. 前端多视图展示 ✓
+1. 课程 CRUD 操作（含标签） ✅
+2. 课程搜索筛选 ✅
+3. 前端多视图展示 ✅
 
 #### **阶段三：高级功能**
 
-1. Excel 导入（含标签） ✓
-2. 管理员用户管理 ✓
-3. 权限控制验证 ✓
+1. Excel 模板下载 ✅
+2. Excel 导入（含标签） ✅
+3. 管理员用户管理 ✅
+4. 权限控制验证 ✅
 
 ### **9.3 重点测试用例**
 
@@ -1089,14 +1194,33 @@ curl -X POST "http://localhost:8080/api/import/excel?termId=1" \
 
 2. **Excel 导入功能**
 
+   - 模板下载测试
    - 标准格式文件导入
    - 标签列识别
    - 错误格式处理
+   - 大文件导入性能测试
 
 3. **权限验证**
    - 普通用户访问管理接口
    - 禁用用户登录
    - 跨用户数据访问
+
+### **9.4 测试工具推荐**
+
+#### **API 测试**
+
+- **Postman**: 接口测试
+- **Apifox**: API 文档管理和测试
+- **curl**: 命令行测试
+
+#### **Excel 测试文件生成**
+
+```bash
+# 使用项目提供的 GenerateExcel.py 工具
+python GenerateExcel.py -h              # 查看帮助信息
+python GenerateExcel.py -n 100          # 生成100条正常数据
+python GenerateExcel.py -t all          # 生成所有类型的测试文件
+```
 
 ---
 
@@ -1112,16 +1236,20 @@ POST /api/auth/login
   "password": "123456"
 }
 
-# 2. 创建学期
+# 2. 下载Excel模板
+GET /api/import/excel/template
+Headers: token: <your-jwt-token>
+
+# 3. 创建学期
 POST /api/terms
-Authorization: Bearer <token>
+Headers: token: <your-jwt-token>
 {
   "name": "2025年春季学期",
   "startDate": "2025-02-17",
   "endDate": "2025-06-20"
 }
 
-# 3. 添加课程（含标签）
+# 4. 添加课程（含标签）
 POST /api/courses
 {
   "termId": 1,
@@ -1130,6 +1258,12 @@ POST /api/courses
   "tag": 1,
   "scheduleEntries": [...]
 }
+
+# 5. Excel批量导入
+POST /api/import/excel?termId=1
+Headers: token: <your-jwt-token>
+Content-Type: multipart/form-data
+Form: file=@courses.xlsx
 ```
 
 ### **10.2 常用测试账户**
@@ -1145,11 +1279,25 @@ POST /api/courses
 
 - API Base URL: `http://localhost:8080/api`
 - Token 存储: localStorage
-- 请求拦截器: 自动添加 Authorization 头
+- 请求拦截器: 自动添加 token 头
 - 响应拦截器: 统一错误处理
+- 文件下载: 使用 blob 响应类型
+
+### **10.4 Excel 相关接口总结**
+
+| 接口                         | 方法 | 用途         | 响应类型 |
+| ---------------------------- | ---- | ------------ | -------- |
+| `/api/import/excel/template` | GET  | 下载导入模板 | 文件流   |
+| `/api/import/excel`          | POST | 上传导入数据 | JSON     |
+
+### **10.5 开发工具**
+
+- **数据库初始化**: [Data.py](./Data.py)
+- **Excel 测试文件生成**: [GenerateExcel.py](./GenerateExcel.py)
+- **测试文件目录**: [excel_test_files/](./excel_test_files/)
 
 ---
 
 **文档版本**: v3.0  
-**更新时间**: 2025 年 6 月 23 日  
-**主要更新**: 新增课程标签功能、完善测试指南、更新 Excel 导入格式
+**更新时间**: 2025 年 7 月 1 日  
+**主要更新**: 新增 Excel 模板下载接口、完善导入流程、更新认证方式说明
