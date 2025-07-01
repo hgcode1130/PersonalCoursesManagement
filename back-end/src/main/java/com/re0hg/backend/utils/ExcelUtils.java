@@ -5,9 +5,12 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.springframework.web.multipart.MultipartFile;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.util.*;
 
+@Slf4j
 public class ExcelUtils {
 
   private static final Set<String> REQUIRED_HEADERS = Set.of(
@@ -127,42 +130,62 @@ public class ExcelUtils {
   }
 
   public static Workbook createTemplateWorkbook() {
-    Workbook workbook = new XSSFWorkbook();
-    Sheet sheet = workbook.createSheet("课程数据");
+    try {
+      log.debug("开始创建Excel模板工作簿");
 
-    // 创建表头
-    Row headerRow = sheet.createRow(0);
-    String[] headers = {
-        "课程名称", "教师", "主讲老师邮箱", "课程群号", "标签",
-        "上课地点", "星期", "开始节次", "结束节次", "开始周", "结束周", "备注"
-    };
+      Workbook workbook = new XSSFWorkbook();
+      Sheet sheet = workbook.createSheet("课程数据");
 
-    for (int i = 0; i < headers.length; i++) {
-      Cell cell = headerRow.createCell(i);
-      cell.setCellValue(headers[i]);
-    }
+      log.debug("工作表创建成功");
 
-    // 创建示例数据
-    Row exampleRow = sheet.createRow(1);
-    Object[] exampleData = {
-        "高等数学", "张三,李四", "zhangsan@xmu.edu.cn", "123456789", "必修",
-        "教学楼A-101", 1, 1, 2, 1, 16, "重要基础课程"
-    };
+      // 创建表头
+      Row headerRow = sheet.createRow(0);
+      String[] headers = {
+          "课程名称", "教师", "主讲老师邮箱", "课程群号", "标签",
+          "上课地点", "星期", "开始节次", "结束节次", "开始周", "结束周", "备注"
+      };
 
-    for (int i = 0; i < exampleData.length; i++) {
-      Cell cell = exampleRow.createCell(i);
-      if (exampleData[i] instanceof Number) {
-        cell.setCellValue(((Number) exampleData[i]).doubleValue());
-      } else {
-        cell.setCellValue(exampleData[i].toString());
+      for (int i = 0; i < headers.length; i++) {
+        Cell cell = headerRow.createCell(i);
+        cell.setCellValue(headers[i]);
       }
-    }
 
-    // 设置列宽
-    for (int i = 0; i < headers.length; i++) {
-      sheet.autoSizeColumn(i);
-    }
+      log.debug("表头创建成功，共{}列", headers.length);
 
-    return workbook;
+      // 创建示例数据
+      Row exampleRow = sheet.createRow(1);
+      Object[] exampleData = {
+          "高等数学", "张三,李四", "zhangsan@xmu.edu.cn", "123456789", "必修",
+          "教学楼A-101", 1, 1, 2, 1, 16, "重要基础课程"
+      };
+
+      for (int i = 0; i < exampleData.length; i++) {
+        Cell cell = exampleRow.createCell(i);
+        if (exampleData[i] instanceof Number) {
+          cell.setCellValue(((Number) exampleData[i]).doubleValue());
+        } else {
+          cell.setCellValue(exampleData[i].toString());
+        }
+      }
+
+      log.debug("示例数据创建成功");
+
+      // 设置列宽
+      try {
+        for (int i = 0; i < headers.length; i++) {
+          sheet.autoSizeColumn(i);
+        }
+        log.debug("列宽自动调整完成");
+      } catch (Exception e) {
+        log.warn("自动调整列宽失败，使用默认宽度: ", e);
+      }
+
+      log.debug("Excel模板工作簿创建完成");
+      return workbook;
+
+    } catch (Exception e) {
+      log.error("创建Excel模板工作簿时发生异常: ", e);
+      throw new RuntimeException("创建Excel模板失败", e);
+    }
   }
 }

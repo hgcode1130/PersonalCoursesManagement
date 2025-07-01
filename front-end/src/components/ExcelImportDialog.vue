@@ -241,26 +241,44 @@ const importResult = ref(null);
 const handleDownloadTemplate = async () => {
   downloadLoading.value = true;
   try {
+    console.log("开始下载Excel模板...");
+
     const response = await downloadTemplateApi();
+
+    console.log("API响应:", {
+      status: response.status,
+      headers: response.headers,
+      dataType: typeof response.data,
+      dataSize: response.data?.size || "unknown",
+    });
+
     // 确保响应是 Blob 类型
     if (!(response.data instanceof Blob)) {
+      console.error("响应数据类型错误:", typeof response.data, response.data);
       throw new Error("响应数据不是有效的 Blob 类型");
     }
 
-    // 创建Blob对象
-    const blob = new Blob([response.data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
+    // 检查Blob大小
+    if (response.data.size === 0) {
+      console.error("响应的Blob大小为0");
+      throw new Error("下载的文件为空");
+    }
+
+    console.log("Blob验证通过，大小:", response.data.size);
 
     // 创建下载链接
-    const url = window.URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(response.data);
     const link = document.createElement("a");
     link.href = url;
     link.download = "课程导入模板.xlsx";
 
+    console.log("下载链接创建:", url);
+
     // 触发下载
     document.body.appendChild(link);
     link.click();
+
+    console.log("下载已触发");
 
     // 清理
     document.body.removeChild(link);
@@ -268,12 +286,25 @@ const handleDownloadTemplate = async () => {
 
     ElMessage.success("模板下载成功");
   } catch (error) {
-    console.error("下载模板失败:", error);
-    ElMessage.error("下载模板失败，请重试");
+    console.error("下载模板失败详细信息:", {
+      message: error.message,
+      response: error.response,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+
+    if (error.response?.status === 500) {
+      ElMessage.error("服务器内部错误，请联系管理员");
+    } else if (error.response?.status === 404) {
+      ElMessage.error("下载接口未找到，请检查服务器配置");
+    } else {
+      ElMessage.error("下载模板失败，请重试");
+    }
   } finally {
     downloadLoading.value = false;
   }
 };
+
 
 // 文件选择变化
 const handleFileChange = (file, fileList) => {

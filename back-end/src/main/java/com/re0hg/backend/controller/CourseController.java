@@ -2,6 +2,7 @@ package com.re0hg.backend.controller;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -102,23 +103,76 @@ public class CourseController {
   @GetMapping("/import/excel/template")
   public void downloadTemplate(HttpServletResponse response) {
     try {
-      log.info("下载Excel模板");
+      log.info("开始下载Excel模板");
 
-      Workbook workbook = ExcelUtils.createTemplateWorkbook();
+      // 调试信息：打印是否成功进入方法
+      log.debug("创建 Excel 模板工作簿...");
+
+      Workbook workbook = null;
+      try {
+        workbook = ExcelUtils.createTemplateWorkbook();
+        log.debug("工作簿创建成功，工作表数量: {}", workbook.getNumberOfSheets());
+      } catch (Exception e) {
+        log.error("创建工作簿时发生异常: ", e);
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
+      }
+
+      // 调试信息：检查工作簿是否创建成功
+      if (workbook == null) {
+        log.error("工作簿创建失败！返回null");
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
+      }
 
       // 设置响应头
-      response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      response.setHeader("Content-Disposition", "attachment; filename=course_template.xlsx");
+      try {
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment; filename=\"course_template.xlsx\"");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
+        log.debug("响应头设置完毕");
+      } catch (Exception e) {
+        log.error("设置响应头时发生异常: ", e);
+        workbook.close();
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
+      }
 
-      // 写入响应
-      workbook.write(response.getOutputStream());
-      workbook.close();
+      // 调试信息：输出响应头设置
+      log.debug("响应头设置完毕，准备写入文件...");
+
+      try {
+        // 调试信息：检查输出流是否正常
+        log.debug("准备写入响应流...");
+        workbook.write(response.getOutputStream());
+        response.getOutputStream().flush();
+        log.debug("写入响应流成功");
+      } catch (IOException e) {
+        log.error("写入响应流失败: ", e);
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return;
+      } finally {
+        // 调试信息：关闭工作簿
+        try {
+          workbook.close();
+          log.debug("工作簿关闭成功");
+        } catch (IOException e) {
+          log.warn("关闭工作簿时发生异常: ", e);
+        }
+      }
+
+      log.info("Excel模板下载完成");
 
     } catch (Exception e) {
+      // 捕获任何异常并输出详细日志
       log.error("下载模板失败: ", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
+
+
 
   /**
    * 创建课程

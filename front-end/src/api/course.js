@@ -67,5 +67,7 @@ export function downloadTemplateApi() {
     url: "/import/excel/template",
     method: "get",
     responseType: "blob", // 重要：指定响应类型为blob以处理文件下载
+    // 添加一个标识，让响应拦截器知道这是文件下载请求
+    skipResponseIntercept: true,
   });
 }
