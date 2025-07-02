@@ -8,7 +8,6 @@ import java.util.List;
 
 import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,7 +23,6 @@ import com.re0hg.backend.service.ExcelImportService;
 import com.re0hg.backend.utils.ExcelUtils;
 import com.re0hg.backend.utils.JwtUtils;
 
-import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -73,7 +71,7 @@ public class CourseController {
       }
 
       // 获取用户信息
-      Long userId = getCurrentUserId(request);
+      Long userId = JwtUtils.getCurrentUserId(request);
       if (userId == null) {
         return Result.error(401, "用户未认证");
       }
@@ -114,13 +112,6 @@ public class CourseController {
         log.debug("工作簿创建成功，工作表数量: {}", workbook.getNumberOfSheets());
       } catch (Exception e) {
         log.error("创建工作簿时发生异常: ", e);
-        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        return;
-      }
-
-      // 调试信息：检查工作簿是否创建成功
-      if (workbook == null) {
-        log.error("工作簿创建失败！返回null");
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         return;
       }
@@ -172,8 +163,6 @@ public class CourseController {
     }
   }
 
-
-
   /**
    * 创建课程
    * POST /api/courses
@@ -184,7 +173,7 @@ public class CourseController {
       log.info("创建课程 - 名称: {}, 学期ID: {}", courseDTO.getName(), courseDTO.getTermId());
 
       // 从JWT获取用户信息
-      Long userId = getCurrentUserId(request);
+      Long userId = JwtUtils.getCurrentUserId(request);
       if (userId == null) {
         return Result.error(401, "用户未认证");
       }
@@ -238,50 +227,50 @@ public class CourseController {
     }
   }
 
-  /**
-   * 从请求中获取当前用户ID
-   * 通过解析JWT token获取用户信息
-   */
-  private Long getCurrentUserId(HttpServletRequest request) {
-    try {
-      // 1. 获取请求头中的token
-      String token = request.getHeader("token");
-
-      if (token == null || token.trim().isEmpty()) {
-        log.warn("请求头中缺少token信息");
-        return null;
-      }
-
-      // 2. 解析JWT token
-      Claims claims = JwtUtils.parseJWT(token);
-
-      // 3. 从claims中获取用户ID
-      Object idObj = claims.get("id");
-      if (idObj == null) {
-        log.warn("JWT token中缺少用户ID信息");
-        return null;
-      }
-
-      // 4. 转换为Long类型
-      Long userId;
-      if (idObj instanceof Integer) {
-        userId = ((Integer) idObj).longValue();
-      } else if (idObj instanceof Long) {
-        userId = (Long) idObj;
-      } else if (idObj instanceof String) {
-        userId = Long.parseLong((String) idObj);
-      } else {
-        log.warn("JWT token中用户ID格式不正确: {}", idObj.getClass());
-        return null;
-      }
-
-      log.debug("成功解析用户ID: {}", userId);
-      return userId;
-    } catch (Exception e) {
-      log.error("解析JWT token失败: ", e);
-      return null;
-    }
-  }
+  // /**
+  // * 从请求中获取当前用户ID
+  // * 通过解析JWT token获取用户信息
+  // */
+  // private Long getCurrentUserId(HttpServletRequest request) {
+  // try {
+  // // 1. 获取请求头中的token
+  // String token = request.getHeader("token");
+  //
+  // if (token == null || token.trim().isEmpty()) {
+  // log.warn("请求头中缺少token信息");
+  // return null;
+  // }
+  //
+  // // 2. 解析JWT token
+  // Claims claims = JwtUtils.parseJWT(token);
+  //
+  // // 3. 从claims中获取用户ID
+  // Object idObj = claims.get("id");
+  // if (idObj == null) {
+  // log.warn("JWT token中缺少用户ID信息");
+  // return null;
+  // }
+  //
+  // // 4. 转换为Long类型
+  // Long userId;
+  // if (idObj instanceof Integer) {
+  // userId = ((Integer) idObj).longValue();
+  // } else if (idObj instanceof Long) {
+  // userId = (Long) idObj;
+  // } else if (idObj instanceof String) {
+  // userId = Long.parseLong((String) idObj);
+  // } else {
+  // log.warn("JWT token中用户ID格式不正确: {}", idObj.getClass());
+  // return null;
+  // }
+  //
+  // log.debug("成功解析用户ID: {}", userId);
+  // return userId;
+  // } catch (Exception e) {
+  // log.error("解析JWT token失败: ", e);
+  // return null;
+  // }
+  // }
 
   /**
    * 获取指定学期的所有课程 (分页)
@@ -298,7 +287,7 @@ public class CourseController {
       log.info("获取学期课程 - 学期ID: {}, 页码: {}, 每页大小: {}", termId, page, size);
 
       // 从JWT获取用户信息
-      Long userId = getCurrentUserId(request);
+      Long userId = JwtUtils.getCurrentUserId(request);
       if (userId == null) {
         return Result.error(401, "用户未认证");
       }
@@ -343,7 +332,7 @@ public class CourseController {
           termId, name, teacher, tag, dayOfWeek, page, size);
 
       // 从JWT获取用户信息
-      Long userId = getCurrentUserId(request);
+      Long userId = JwtUtils.getCurrentUserId(request);
       if (userId == null) {
         return Result.error(401, "用户未认证");
       }
@@ -371,7 +360,7 @@ public class CourseController {
       log.info("更新课程 - 课程ID: {}, 名称: {}", courseId, courseDTO.getName());
 
       // 从JWT获取用户信息
-      Long userId = getCurrentUserId(request);
+      Long userId = JwtUtils.getCurrentUserId(request);
       if (userId == null) {
         return Result.error(401, "用户未认证");
       }
@@ -433,7 +422,7 @@ public class CourseController {
       log.info("删除课程 - 课程ID: {}", courseId);
 
       // 从JWT获取用户信息
-      Long userId = getCurrentUserId(request);
+      Long userId = JwtUtils.getCurrentUserId(request);
       if (userId == null) {
         return Result.error(401, "用户未认证");
       }

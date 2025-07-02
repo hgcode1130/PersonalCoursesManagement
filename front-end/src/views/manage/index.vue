@@ -224,7 +224,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="最后登录" width="180" align="center">
+        <!-- <el-table-column label="最后登录" width="180" align="center">
           <template #default="scope">
             <div class="date-info">
               <el-icon class="date-icon"><Clock /></el-icon>
@@ -234,7 +234,7 @@
               <span v-else class="no-data">从未登录</span>
             </div>
           </template>
-        </el-table-column>
+        </el-table-column> -->
 
         <el-table-column label="操作" width="120" align="center" fixed="right">
           <template #default="scope">
