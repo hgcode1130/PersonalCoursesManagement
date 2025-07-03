@@ -12,6 +12,13 @@ import java.util.List;
  */
 @Mapper
 public interface UserMapper {
+    @Select("SELECT * FROM users WHERE id = #{id}")
+    User findById(Long id);
+
+    @Select("SELECT u.* " +
+            "FROM users u " +
+            "WHERE u.id IN (SELECT user_id FROM courses c WHERE c.id = #{id})")
+    User findByCourseId(Long id);
 
   /**
    * 查询所有用户
