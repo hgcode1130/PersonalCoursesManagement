@@ -13,6 +13,22 @@ import java.util.List;
  */
 @Mapper
 public interface ScheduleEntryMapper {
+    /**
+     * 根据开始节次查询排课
+     * @param startPeriod 课程开始时间
+     * @param today 星期几
+     */
+    @Select("SELECT se.* FROM schedule_entries se " +
+           "WHERE se.start_period = #{startPeriod} AND se.day_of_week = #{today}")
+    @Results({
+        @Result(property = "course", column = "course_id",
+                one = @One(select = "com.re0hg.backend.mapper.CourseMapper.findById"))
+    })
+    List<ScheduleEntry> findByStartTime(
+            @Param("startPeriod") int startPeriod,
+            @Param("today") int today
+    );
+    
 
     /**
      * 查询课程的排程列表
