@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.*;
 import org.springframework.data.repository.query.Param;
 
 import com.re0hg.backend.pojo.Term;
+import java.time.*;
 
 /**
  * @author re0hg
@@ -14,6 +15,19 @@ import com.re0hg.backend.pojo.Term;
  */
 @Mapper
 public interface TermMapper {
+  /**
+     * 查询用户当前活跃的学期
+     * @param userId 用户ID
+     * @param date 查询日期
+     * @return 学期信息
+     */
+    @Select("SELECT * FROM terms " +
+           "WHERE user_id = #{userId} " +
+           "AND #{date} BETWEEN start_date AND end_date " +
+           "ORDER BY start_date DESC LIMIT 1")
+    Term findCurrentTerm(@Param("userId") Long userId,
+                        @Param("date") LocalDate date);
+
 
   /**
    * 分页查询指定用户的学期列表
